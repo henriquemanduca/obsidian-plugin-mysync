@@ -149,7 +149,7 @@ export class PouchDbFileStore {
 	}
 
 	async listFileRecords() {
-		logger.method("listFileRecords");
+		// logger.method("listFileRecords");
 
 		return this.runWithLocalDb(async (fileDb) => {
 			const result = await fileDb.allDocs({

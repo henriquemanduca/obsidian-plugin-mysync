@@ -174,7 +174,7 @@ export class SyncService {
 		// logger.method("pullFromCouchDb", { syncInProgress: this.syncInProgress });
 
 		if (this.syncInProgress) {
-			new Notice("MySync sync is already running.");
+			new Notice("MySync is already running.");
 			return;
 		}
 
