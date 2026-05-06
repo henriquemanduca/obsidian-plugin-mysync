@@ -1,0 +1,14 @@
+.mysync-status {
+	color: var(--text-muted);
+}
+
+.mysync-settings-section {
+	margin-top: 1.5em;
+}
+
+.mysync-settings-heading {
+	margin: 0 0 0.5em;
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+}
