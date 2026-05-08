@@ -177,6 +177,7 @@ export class SyncService {
 			new Notice("MySync is already running.");
 			return;
 		}
+		new Notice("MySync start pulling...");
 
 		const settings = this.getSettings();
 		const validationMessage = validateCouchDbSettings(settings, "pulling");
@@ -387,39 +388,42 @@ export class SyncService {
 		// logger.method("restoreVaultFile", { path: record.path, fileType: record.fileType });
 
 		const path = normalizeRestoredPath(record.path);
-
 		if (!path || record.type !== "vault-file") {
 			return "skipped";
 		}
 
 		const existingFile = this.app.vault.getAbstractFileByPath(path);
-
-		if (existingFile) {
-			await this.createConflictFile(record, path);
-			return "conflict";
-		}
-
-		const folderStatus = await this.ensureParentFolders(path);
-
-		if (folderStatus === "conflict") {
-			await this.createConflictFile(record, path);
-			return "conflict";
-		}
-
-		if (record.fileType === "markdown") {
-			if (typeof record.content !== "string") {
+		if (existingFile instanceof TFile) {
+			if (record.lastChanged <= existingFile.stat.mtime) {
 				return "skipped";
 			}
 
-			await this.app.vault.create(path, record.content);
+			await this.overwriteLocalFile(record, path);
 			return "restored";
 		}
 
-		if (record.fileType === "image" || record.fileType === "binary") {
-			const data = await getAttachmentArrayBuffer(record);
+		const folderStatus = await this.ensureParentFolders(path);
+		if (folderStatus === "conflict") {
+			return "skipped";
+		}
 
-			if (!data) {
-				return "skipped";
+		const fileTypeIstext = record.fileType === "markdown" && typeof record.content === "string";
+		if (fileTypeIstext) {
+			await this.app.vault.create(path, record.content!);
+			return "restored";
+		}
+
+		if (!fileTypeIstext) {
+			const data = await getAttachmentArrayBuffer(record);
+			if (!data) return "skipped";
+
+			if (existingFile instanceof TFile) {
+				const localData = await this.app.vault.readBinary(existingFile);
+				const [remoteHash, localHash] = await Promise.all([
+					bufferHash(data),
+					bufferHash(localData)
+				]);
+				if (remoteHash === localHash) return "skipped";
 			}
 
 			await this.app.vault.createBinary(path, data);
@@ -429,28 +433,45 @@ export class SyncService {
 		return "skipped";
 	}
 
-	private async createConflictFile(record: VaultFileRecord, originalPath: string) {
-		const conflictPath = getConflictPath(originalPath);
+	private async overwriteLocalFile(record: VaultFileRecord, path: string): Promise<void> {
+		const fileTypeIstext = record.fileType === "markdown" && typeof record.content === "string";
 
-		const folderStatus = await this.ensureParentFolders(conflictPath);
-		if (folderStatus === "conflict") {
-			return;
+		const existing = this.app.vault.getAbstractFileByPath(path);
+		if (existing instanceof TFile || existing instanceof TFolder) {
+			await this.app.vault.delete(existing);
 		}
 
-		const existingConflict = this.app.vault.getAbstractFileByPath(conflictPath);
-		if (existingConflict) {
-			await this.app.vault.delete(existingConflict);
-		}
+		if (fileTypeIstext) {
+			await this.app.vault.create(path, record.content!);
 
-		if (record.fileType === "markdown" && typeof record.content === "string") {
-			await this.app.vault.create(conflictPath, record.content);
-		} else if (record.fileType === "image" || record.fileType === "binary") {
+		} else if (!fileTypeIstext && typeof record._attachments?.file?.data !== "undefined") {
 			const data = await getAttachmentArrayBuffer(record);
-			if (data) {
-				await this.app.vault.createBinary(conflictPath, data);
-			}
+			if (data) await this.app.vault.createBinary(path, data);
 		}
 	}
+
+	// private async createConflictFile(record: VaultFileRecord, originalPath: string) {
+	// 	const conflictPath = getConflictPath(originalPath);
+	//
+	// 	const folderStatus = await this.ensureParentFolders(conflictPath);
+	// 	if (folderStatus === "conflict") {
+	// 		return;
+	// 	}
+	//
+	// 	const existingConflict = this.app.vault.getAbstractFileByPath(conflictPath);
+	// 	if (existingConflict) {
+	// 		await this.app.vault.delete(existingConflict);
+	// 	}
+	//
+	// 	if (record.fileType === "markdown" && typeof record.content === "string") {
+	// 		await this.app.vault.create(conflictPath, record.content);
+	// 	} else if (record.fileType === "image" || record.fileType === "binary") {
+	// 		const data = await getAttachmentArrayBuffer(record);
+	// 		if (data) {
+	// 			await this.app.vault.createBinary(conflictPath, data);
+	// 		}
+	// 	}
+	// }
 
 	private async ensureParentFolders(path: string): Promise<"ok" | "conflict"> {
 		// logger.method("ensureParentFolders", { path });
@@ -723,4 +744,12 @@ async function getAttachmentArrayBuffer(record: VaultFileRecord) {
 	}
 
 	return null;
+}
+
+async function bufferHash(buffer: ArrayBuffer): Promise<string> {
+	const digest = await crypto.subtle.digest('MD5', buffer);
+	// Cast ArrayBuffer → Uint8Array → hex string
+	return Array.from(new Uint8Array(digest))
+		.map(b => b.toString(16).padStart(2, '0'))
+		.join('');
 }
