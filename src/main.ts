@@ -122,16 +122,16 @@ export default class MySyncPlugin extends Plugin {
 		}
 
 		if (status.state === "syncing") {
-			this.statusBarEl.setText(`local ${status.current}/${status.total}, skipped ${status.skipped}`);
+			this.statusBarEl.setText(`local ${status.current}/${status.total}`);
 			this.statusBarEl.title = `Syncing local files. Saved ${status.saved}, skipped ${status.skipped}`;
 			return;
 		}
 
 		if (status.state === "done") {
 			if (status.saved == 0) {
-				this.statusBarEl.setText(`done, skipped ${status.skipped}`);
+				this.statusBarEl.setText("done");
 			} else {
-				this.statusBarEl.setText(`done ${status.saved}/${status.total}, skipped ${status.skipped}`);
+				this.statusBarEl.setText(`done ${status.saved}, skipped ${status.skipped}`);
 			}
 			this.statusBarEl.title = `Saved ${status.saved}, skipped ${status.skipped}`;
 			return;
@@ -150,20 +150,20 @@ export default class MySyncPlugin extends Plugin {
 		}
 
 		if (status.state === "pulling") {
-			this.statusBarEl.setText("pull remote");
+			this.statusBarEl.setText("pulling remote");
 			this.statusBarEl.title = `Pulling from CouchDB. Read ${status.docsRead} document change(s)`;
 			return;
 		}
 
 		if (status.state === "restoring") {
-			this.statusBarEl.setText(`restore ${status.current}/${status.total}`);
+			this.statusBarEl.setText(`restore ${status.current}, skipped ${status.skipped}`);
 			this.statusBarEl.title = `Restoring files. Restored ${status.restored}, skipped ${status.skipped}, conflicts ${status.conflicts}`;
 			return;
 		}
 
 		if (status.state === "pulled") {
 			this.statusBarEl.setText(`pulled ${status.restored}`);
-			this.statusBarEl.title = `CouchDB pull complete. Read ${status.docsRead}, restored ${status.restored}, skipped ${status.skipped}, conflicts ${status.conflicts}`;
+			this.statusBarEl.title = `Pull complete. Read ${status.docsRead}, restored ${status.restored}, skipped ${status.skipped}, conflicts ${status.conflicts}`;
 			return;
 		}
 
