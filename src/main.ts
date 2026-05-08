@@ -138,20 +138,20 @@ export default class MySyncPlugin extends Plugin {
 		}
 
 		if (status.state === "pushing") {
-			this.statusBarEl.setText("push remote");
-			this.statusBarEl.title = `Pushing to CouchDB. Written ${status.docsWritten} document change(s)`;
+			this.statusBarEl.setText("pushing...");
+			this.statusBarEl.title = "Pushing to CouchDB.";
 			return;
 		}
 
 		if (status.state === "pushed") {
-			this.statusBarEl.setText(`pushed ${status.docsWritten}`);
-			this.statusBarEl.title = `CouchDB push complete. Written ${status.docsWritten} document change(s)`;
+			this.statusBarEl.setText("pushed complete");
+			this.statusBarEl.title = "CouchDB push complete.";
 			return;
 		}
 
 		if (status.state === "pulling") {
-			this.statusBarEl.setText("pulling remote");
-			this.statusBarEl.title = `Pulling from CouchDB. Read ${status.docsRead} document change(s)`;
+			this.statusBarEl.setText("pulling...");
+			this.statusBarEl.title = "Pulling from CouchDB.";
 			return;
 		}
 

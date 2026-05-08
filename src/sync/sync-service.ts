@@ -54,6 +54,7 @@ export class SyncService {
 	private syncInProgress = false;
 	private pendingSyncPaths = new Set<string>();
 	private syncQueueTimer: number | null = null;
+	private applyingRemoteDeletion = false;
 
 	constructor(
 		private app: App,
@@ -65,13 +66,13 @@ export class SyncService {
 	}
 
 	async syncNow() {
-		logger.method("syncNow", { syncInProgress: this.syncInProgress });
+		// logger.method("syncNow", { syncInProgress: this.syncInProgress });
 
 		if (this.syncInProgress) {
 			new Notice("MySync is already running.");
 			return;
 		}
-		new Notice("MySync synchronization...");
+		new Notice("MySync starting...");
 
 		this.syncInProgress = true;
 		let failed = false;
@@ -110,7 +111,6 @@ export class SyncService {
 			new Notice("MySync is already running.");
 			return;
 		}
-		new Notice("MySync start pushing...");
 
 		const settings = this.getSettings();
 		const validationMessage = validateCouchDbSettings(settings);
@@ -127,6 +127,7 @@ export class SyncService {
 		this.syncInProgress = true;
 		let failed = false;
 
+		const notice = new Notice("MySync start pushing...", 0);
 		try {
 			const result = await this.syncLocalFiles();
 
@@ -171,6 +172,8 @@ export class SyncService {
 			});
 			new Notice(getErrorMessage(error, "CouchDB push failed. Check the console for details."));
 		} finally {
+			notice.hide()
+
 			this.syncInProgress = false;
 			this.scheduleQueuedSync();
 
@@ -187,7 +190,6 @@ export class SyncService {
 			new Notice("MySync is already running.");
 			return;
 		}
-		new Notice("MySync start pulling...");
 
 		const settings = this.getSettings();
 		const validationMessage = validateCouchDbSettings(settings, "pulling");
@@ -203,6 +205,7 @@ export class SyncService {
 
 		this.syncInProgress = true;
 
+		const notice = new Notice("MySync start pulling...", 0);
 		try {
 			this.onStatusChange({
 				state: "pulling",
@@ -211,12 +214,6 @@ export class SyncService {
 
 			const localRecordsBeforePull = await this.store.listFileRecords();
 			const localRecordsById = new Map(localRecordsBeforePull.map((record) => [record._id, record]));
-			const deletedRecordIds = await this.store.listRemoteDeletedFileRecordIds({
-				url: settings.couchDbUrl,
-				database: settings.couchDbDatabase,
-				username: settings.couchDbUsername,
-				password: settings.couchDbPassword
-			});
 
 			const pullResult = await this.store.pullFromCouchDb(
 				{
@@ -233,6 +230,7 @@ export class SyncService {
 				}
 			);
 
+			const deletedRecordIds = await this.store.listDeletedFileRecordIds(Array.from(localRecordsById.keys()));
 			const deletionResult = await this.deleteRemoteDeletedFiles(deletedRecordIds, localRecordsById);
 			const records = await this.store.listFileRecords();
 			const restoreResult = await this.restoreVaultFiles(records);
@@ -258,6 +256,7 @@ export class SyncService {
 			});
 			new Notice(getErrorMessage(error, "CouchDB pull failed. Check the console for details."));
 		} finally {
+			notice.hide();
 			this.syncInProgress = false;
 			this.scheduleQueuedSync();
 		}
@@ -273,25 +272,31 @@ export class SyncService {
 		const uniqueDeletedRecordIds = Array.from(new Set(deletedRecordIds));
 		const syncFolder = this.getCurrentSyncFolder();
 
-		for (const [index, recordId] of uniqueDeletedRecordIds.entries()) {
-			const deleteStatus = await this.deleteRemoteDeletedFile(recordId, localRecordsById, syncFolder);
+		this.applyingRemoteDeletion = true;
 
-			if (deleteStatus === "deleted") {
-				deleted += 1;
-			} else if (deleteStatus === "conflict") {
-				conflicts += 1;
-			} else {
-				skipped += 1;
+		try {
+			for (const [index, recordId] of uniqueDeletedRecordIds.entries()) {
+				const deleteStatus = await this.deleteRemoteDeletedFile(recordId, localRecordsById, syncFolder);
+
+				if (deleteStatus === "deleted") {
+					deleted += 1;
+				} else if (deleteStatus === "conflict") {
+					conflicts += 1;
+				} else {
+					skipped += 1;
+				}
+
+				this.onStatusChange({
+					state: "deleting",
+					current: index + 1,
+					total: uniqueDeletedRecordIds.length,
+					deleted,
+					skipped,
+					conflicts
+				});
 			}
-
-			this.onStatusChange({
-				state: "deleting",
-				current: index + 1,
-				total: uniqueDeletedRecordIds.length,
-				deleted,
-				skipped,
-				conflicts
-			});
+		} finally {
+			this.applyingRemoteDeletion = false;
 		}
 
 		return {
@@ -320,8 +325,9 @@ export class SyncService {
 		}
 
 		const existingFile = this.app.vault.getAbstractFileByPath(path);
+		const localRecord = localRecordsById.get(recordId);
 
-		if (!existingFile) {
+		if (!existingFile || !localRecord) {
 			return "skipped";
 		}
 
@@ -329,14 +335,33 @@ export class SyncService {
 			return "conflict";
 		}
 
-		const localRecord = localRecordsById.get(recordId);
-
-		if (!localRecord || existingFile.stat.mtime !== localRecord.lastChanged) {
+		if (!(await this.localFileMatchesRecord(existingFile, localRecord))) {
 			return "conflict";
 		}
 
 		await this.app.vault.delete(existingFile);
 		return "deleted";
+	}
+
+	private async localFileMatchesRecord(file: TFile, record: VaultFileRecord) {
+		if (record.fileType === "markdown" && typeof record.content === "string") {
+			const localContent = await this.app.vault.read(file);
+			return localContent === record.content;
+		}
+
+		const recordData = await getAttachmentArrayBuffer(record);
+
+		if (recordData) {
+			const localData = await this.app.vault.readBinary(file);
+			const [recordHash, localHash] = await Promise.all([
+				bufferHash(recordData),
+				bufferHash(localData)
+			]);
+
+			return recordHash === localHash;
+		}
+
+		return file.stat.size === record.size && file.stat.mtime === record.lastChanged;
 	}
 
 	async testCouchDbConnection() {
@@ -378,7 +403,7 @@ export class SyncService {
 				databaseName: result.databaseName,
 				documentCount: result.documentCount
 			});
-			new Notice(`Connected to CouchDB database ${result.databaseName}.`);
+			new Notice("Connected to CouchDB database.");
 		} catch (error) {
 			failed = true;
 			logger.error("CouchDB connection test failed", error);
@@ -629,6 +654,10 @@ export class SyncService {
 	async handleDeletedFile(abstractFile: TAbstractFile) {
 		// logger.method("handleDeletedFile", { path: abstractFile.path });
 
+		if (this.applyingRemoteDeletion) {
+			return;
+		}
+
 		if (abstractFile instanceof TFile) {
 			await this.store.deleteFileRecordByPath(abstractFile.path);
 		}
@@ -672,7 +701,6 @@ export class SyncService {
 		}
 
 		this.syncInProgress = true;
-
 		let failed = false;
 
 		try {
@@ -804,15 +832,15 @@ function getErrorMessage(error: unknown, fallback: string) {
 	return fallback;
 }
 
-function getConflictPath(path: string) {
-	const lastDotIndex = path.lastIndexOf(".");
-
-	if (lastDotIndex > 0) {
-		return path.slice(0, lastDotIndex) + ".conflict" + path.slice(lastDotIndex);
-	}
-
-	return path + ".conflict";
-}
+// function getConflictPath(path: string) {
+// 	const lastDotIndex = path.lastIndexOf(".");
+//
+// 	if (lastDotIndex > 0) {
+// 		return path.slice(0, lastDotIndex) + ".conflict" + path.slice(lastDotIndex);
+// 	}
+//
+// 	return path + ".conflict";
+// }
 
 function normalizeRestoredPath(path: string) {
 	if (path.startsWith("/")) {

@@ -148,31 +148,6 @@ export class PouchDbFileStore {
 		});
 	}
 
-	async listRemoteDeletedFileRecordIds(connection: CouchDbConnection) {
-		// logger.method("listRemoteDeletedFileRecordIds", { database: connection.database });
-
-		const remoteUrl = createRemoteDatabaseUrl(connection.url, connection.database);
-		const remoteDb = new PouchDB<VaultFileRecord>(remoteUrl, createRemoteOptions(connection));
-
-		try {
-			const changes = await remoteDb.changes({
-				since: 0,
-				include_docs: false,
-				style: "all_docs"
-			});
-
-			return changes.results.flatMap((change) => {
-				if (change.deleted && change.id.startsWith("vault-file:")) {
-					return [change.id];
-				}
-
-				return [];
-			});
-		} finally {
-			await remoteDb.close();
-		}
-	}
-
 	async listFileRecords() {
 		// logger.method("listFileRecords");
 
@@ -184,6 +159,28 @@ export class PouchDbFileStore {
 			});
 
 			return result.rows.flatMap((row) => (row.doc ? [row.doc] : []));
+		});
+	}
+
+	async listDeletedFileRecordIds(recordIds: string[]) {
+		// logger.method("listDeletedFileRecordIds", { total: recordIds.length });
+
+		if (recordIds.length === 0) {
+			return [];
+		}
+
+		return this.runWithLocalDb(async (fileDb) => {
+			const result = await fileDb.allDocs({
+				keys: Array.from(new Set(recordIds))
+			});
+
+			return result.rows.flatMap((row) => {
+				if (row.value?.deleted && row.id.startsWith("vault-file:")) {
+					return [row.id];
+				}
+
+				return [];
+			});
 		});
 	}
 
