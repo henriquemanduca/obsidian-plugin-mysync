@@ -5,9 +5,11 @@ import type { VaultFileRecord } from "sync/types";
 import {
 	collectFilesInFolder,
 	createFileRecord,
+	getPathFromFileRecordId,
 	getSyncFolder,
 	getSyncFolderState,
-	isFileInsideSyncFolder
+	isFileInsideSyncFolder,
+	isPathInsideSyncFolder
 } from "sync/vault-files";
 import { Logger } from "utils/logger";
 
@@ -24,6 +26,13 @@ interface RestoreResult {
 	conflicts: number;
 }
 
+interface RemoteDeletionResult {
+	total: number;
+	deleted: number;
+	skipped: number;
+	conflicts: number;
+}
+
 export type SyncStatus =
 	| { state: "idle" }
 	| { state: "queued"; pending: number }
@@ -32,8 +41,9 @@ export type SyncStatus =
 	| { state: "pushing"; docsWritten: number }
 	| { state: "pushed"; docsWritten: number }
 	| { state: "pulling"; docsRead: number }
+	| { state: "deleting"; current: number; total: number; deleted: number; skipped: number; conflicts: number }
 	| { state: "restoring"; current: number; total: number; restored: number; skipped: number; conflicts: number }
-	| { state: "pulled"; docsRead: number; restored: number; skipped: number; conflicts: number }
+	| { state: "pulled"; docsRead: number; restored: number; deleted: number; skipped: number; conflicts: number }
 	| { state: "testing" }
 	| { state: "tested"; databaseName: string; documentCount?: number }
 	| { state: "error"; message: string };
@@ -199,6 +209,15 @@ export class SyncService {
 				docsRead: 0
 			});
 
+			const localRecordsBeforePull = await this.store.listFileRecords();
+			const localRecordsById = new Map(localRecordsBeforePull.map((record) => [record._id, record]));
+			const deletedRecordIds = await this.store.listRemoteDeletedFileRecordIds({
+				url: settings.couchDbUrl,
+				database: settings.couchDbDatabase,
+				username: settings.couchDbUsername,
+				password: settings.couchDbPassword
+			});
+
 			const pullResult = await this.store.pullFromCouchDb(
 				{
 					url: settings.couchDbUrl,
@@ -214,18 +233,22 @@ export class SyncService {
 				}
 			);
 
+			const deletionResult = await this.deleteRemoteDeletedFiles(deletedRecordIds, localRecordsById);
 			const records = await this.store.listFileRecords();
 			const restoreResult = await this.restoreVaultFiles(records);
+			const skipped = restoreResult.skipped + deletionResult.skipped;
+			const conflicts = restoreResult.conflicts + deletionResult.conflicts;
 
 			this.onStatusChange({
 				state: "pulled",
 				docsRead: pullResult.docsRead,
 				restored: restoreResult.restored,
-				skipped: restoreResult.skipped,
-				conflicts: restoreResult.conflicts
+				deleted: deletionResult.deleted,
+				skipped,
+				conflicts
 			});
 			new Notice(
-				`Pulled ${pullResult.docsRead} documents. Restored ${restoreResult.restored}, skipped ${restoreResult.skipped}, conflicts ${restoreResult.conflicts}.`
+				`Pulled ${pullResult.docsRead} documents. Restored ${restoreResult.restored}, deleted ${deletionResult.deleted}, skipped ${skipped}, conflicts ${conflicts}.`
 			);
 		} catch (error) {
 			logger.error("CouchDB pull failed", error);
@@ -238,6 +261,82 @@ export class SyncService {
 			this.syncInProgress = false;
 			this.scheduleQueuedSync();
 		}
+	}
+
+	private async deleteRemoteDeletedFiles(
+		deletedRecordIds: string[],
+		localRecordsById: Map<string, VaultFileRecord>
+	): Promise<RemoteDeletionResult> {
+		let deleted = 0;
+		let skipped = 0;
+		let conflicts = 0;
+		const uniqueDeletedRecordIds = Array.from(new Set(deletedRecordIds));
+		const syncFolder = this.getCurrentSyncFolder();
+
+		for (const [index, recordId] of uniqueDeletedRecordIds.entries()) {
+			const deleteStatus = await this.deleteRemoteDeletedFile(recordId, localRecordsById, syncFolder);
+
+			if (deleteStatus === "deleted") {
+				deleted += 1;
+			} else if (deleteStatus === "conflict") {
+				conflicts += 1;
+			} else {
+				skipped += 1;
+			}
+
+			this.onStatusChange({
+				state: "deleting",
+				current: index + 1,
+				total: uniqueDeletedRecordIds.length,
+				deleted,
+				skipped,
+				conflicts
+			});
+		}
+
+		return {
+			total: uniqueDeletedRecordIds.length,
+			deleted,
+			skipped,
+			conflicts
+		};
+	}
+
+	private async deleteRemoteDeletedFile(
+		recordId: string,
+		localRecordsById: Map<string, VaultFileRecord>,
+		syncFolder: string
+	): Promise<"deleted" | "skipped" | "conflict"> {
+		const rawPath = getPathFromFileRecordId(recordId);
+
+		if (!rawPath) {
+			return "skipped";
+		}
+
+		const path = normalizeRestoredPath(rawPath);
+
+		if (!path || !isPathInsideSyncFolder(path, syncFolder)) {
+			return "skipped";
+		}
+
+		const existingFile = this.app.vault.getAbstractFileByPath(path);
+
+		if (!existingFile) {
+			return "skipped";
+		}
+
+		if (!(existingFile instanceof TFile)) {
+			return "conflict";
+		}
+
+		const localRecord = localRecordsById.get(recordId);
+
+		if (!localRecord || existingFile.stat.mtime !== localRecord.lastChanged) {
+			return "conflict";
+		}
+
+		await this.app.vault.delete(existingFile);
+		return "deleted";
 	}
 
 	async testCouchDbConnection() {

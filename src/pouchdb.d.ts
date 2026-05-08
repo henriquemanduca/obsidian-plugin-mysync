@@ -47,6 +47,29 @@ declare module "pouchdb" {
 			binary?: boolean;
 		}
 
+		interface ChangesOptions {
+			since?: string | number;
+			include_docs?: boolean;
+			style?: "main_only" | "all_docs";
+		}
+
+		interface ChangesResultChange {
+			rev: string;
+		}
+
+		interface ChangesResultRow<T extends { _id: string }> {
+			id: string;
+			seq: string | number;
+			changes: ChangesResultChange[];
+			deleted?: boolean;
+			doc?: T & ExistingDocument;
+		}
+
+		interface ChangesResponse<T extends { _id: string }> {
+			results: Array<ChangesResultRow<T>>;
+			last_seq: string | number;
+		}
+
 		interface AllDocsRow<T extends { _id: string }> {
 			id: string;
 			key: string;
@@ -78,6 +101,7 @@ declare module "pouchdb" {
 			get(id: string): Promise<T & ExistingDocument>;
 			remove(doc: ExistingDocument): Promise<unknown>;
 			allDocs(options?: AllDocsOptions): Promise<AllDocsResponse<T>>;
+			changes(options?: ChangesOptions): Promise<ChangesResponse<T>>;
 			info(): Promise<DatabaseInfo>;
 			close(): Promise<void>;
 			destroy(): Promise<unknown>;
@@ -92,6 +116,7 @@ declare module "pouchdb" {
 		get(id: string): Promise<T & PouchDB.ExistingDocument>;
 		remove(doc: PouchDB.ExistingDocument): Promise<unknown>;
 		allDocs(options?: PouchDB.AllDocsOptions): Promise<PouchDB.AllDocsResponse<T>>;
+		changes(options?: PouchDB.ChangesOptions): Promise<PouchDB.ChangesResponse<T>>;
 		info(): Promise<PouchDB.DatabaseInfo>;
 		close(): Promise<void>;
 		destroy(): Promise<unknown>;

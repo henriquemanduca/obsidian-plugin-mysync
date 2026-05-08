@@ -155,6 +155,12 @@ export default class MySyncPlugin extends Plugin {
 			return;
 		}
 
+		if (status.state === "deleting") {
+			this.statusBarEl.setText(`delete ${status.current}/${status.total}`);
+			this.statusBarEl.title = `Applying remote deletions. Deleted ${status.deleted}, skipped ${status.skipped}, conflicts ${status.conflicts}`;
+			return;
+		}
+
 		if (status.state === "restoring") {
 			this.statusBarEl.setText(`restore ${status.current}, skipped ${status.skipped}`);
 			this.statusBarEl.title = `Restoring files. Restored ${status.restored}, skipped ${status.skipped}, conflicts ${status.conflicts}`;
@@ -162,8 +168,8 @@ export default class MySyncPlugin extends Plugin {
 		}
 
 		if (status.state === "pulled") {
-			this.statusBarEl.setText(`pulled ${status.restored}`);
-			this.statusBarEl.title = `Pull complete. Read ${status.docsRead}, restored ${status.restored}, skipped ${status.skipped}, conflicts ${status.conflicts}`;
+			this.statusBarEl.setText(`pulled ${status.restored}/${status.deleted}`);
+			this.statusBarEl.title = `Pull complete. Read ${status.docsRead}, restored ${status.restored}, deleted ${status.deleted}, skipped ${status.skipped}, conflicts ${status.conflicts}`;
 			return;
 		}
 

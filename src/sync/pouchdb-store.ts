@@ -148,6 +148,31 @@ export class PouchDbFileStore {
 		});
 	}
 
+	async listRemoteDeletedFileRecordIds(connection: CouchDbConnection) {
+		// logger.method("listRemoteDeletedFileRecordIds", { database: connection.database });
+
+		const remoteUrl = createRemoteDatabaseUrl(connection.url, connection.database);
+		const remoteDb = new PouchDB<VaultFileRecord>(remoteUrl, createRemoteOptions(connection));
+
+		try {
+			const changes = await remoteDb.changes({
+				since: 0,
+				include_docs: false,
+				style: "all_docs"
+			});
+
+			return changes.results.flatMap((change) => {
+				if (change.deleted && change.id.startsWith("vault-file:")) {
+					return [change.id];
+				}
+
+				return [];
+			});
+		} finally {
+			await remoteDb.close();
+		}
+	}
+
 	async listFileRecords() {
 		// logger.method("listFileRecords");
 
