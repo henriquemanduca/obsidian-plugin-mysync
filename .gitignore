@@ -6,3 +6,4 @@ data.json
 .DS_Store
 .codex
 .idea
+.env
