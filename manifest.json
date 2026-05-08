@@ -3,7 +3,7 @@
 	"name": "MySync",
 	"version": "0.1.0",
 	"minAppVersion": "1.0.0",
-	"description": "Sync notes and plugin data with MySync.",
+	"description": "Sync notes to your home database with MySync.",
 	"author": "",
 	"authorUrl": "",
 	"isDesktopOnly": false
