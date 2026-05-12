@@ -122,16 +122,12 @@ export class PouchDbFileStore {
 		// logger.method("pullFromCouchDb", { database: connection.database });
 
 		return this.runWithLocalDb(async (fileDb) => {
-			await fileDb.destroy();
-			this.fileDb = new PouchDB<VaultFileRecord>(this.localDatabaseName);
-			this.fileDbClosed = false;
-
 			const remoteUrl = createRemoteDatabaseUrl(connection.url, connection.database);
 			const options = createRemoteOptions(connection);
 			let docsRead = 0;
 
 			return new Promise<RemotePullResult>((resolve, reject) => {
-				this.fileDb.replicate
+				fileDb.replicate
 					.from(remoteUrl, options)
 					.on("change", (change) => {
 						docsRead += change.docs_read ?? 0;
