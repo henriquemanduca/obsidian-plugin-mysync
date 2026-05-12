@@ -232,8 +232,7 @@ export class SyncService {
 
 			const deletedRecordIds = await this.store.listDeletedFileRecordIds(Array.from(localRecordsById.keys()));
 			const deletionResult = await this.deleteRemoteDeletedFiles(deletedRecordIds, localRecordsById);
-			const records = await this.store.listFileRecords();
-			const restoreResult = await this.restoreVaultFiles(records);
+			const restoreResult = await this.restoreVaultFiles();
 			const skipped = restoreResult.skipped + deletionResult.skipped;
 			const conflicts = restoreResult.conflicts + deletionResult.conflicts;
 
@@ -270,13 +269,12 @@ export class SyncService {
 		let skipped = 0;
 		let conflicts = 0;
 		const uniqueDeletedRecordIds = Array.from(new Set(deletedRecordIds));
-		const syncFolder = this.getCurrentSyncFolder();
 
 		this.applyingRemoteDeletion = true;
 
 		try {
 			for (const [index, recordId] of uniqueDeletedRecordIds.entries()) {
-				const deleteStatus = await this.deleteRemoteDeletedFile(recordId, localRecordsById, syncFolder);
+				const deleteStatus = await this.deleteRemoteDeletedFile(recordId, localRecordsById);
 
 				if (deleteStatus === "deleted") {
 					deleted += 1;
@@ -309,8 +307,7 @@ export class SyncService {
 
 	private async deleteRemoteDeletedFile(
 		recordId: string,
-		localRecordsById: Map<string, VaultFileRecord>,
-		syncFolder: string
+		localRecordsById: Map<string, VaultFileRecord>
 	): Promise<"deleted" | "skipped" | "conflict"> {
 		const rawPath = getPathFromFileRecordId(recordId);
 
@@ -319,6 +316,7 @@ export class SyncService {
 		}
 
 		const path = normalizeRestoredPath(rawPath);
+		const syncFolder = this.getCurrentSyncFolder();
 
 		if (!path || !isPathInsideSyncFolder(path, syncFolder)) {
 			return "skipped";
@@ -465,12 +463,14 @@ export class SyncService {
 		};
 	}
 
-	private async restoreVaultFiles(records: VaultFileRecord[]): Promise<RestoreResult> {
-		// logger.method("restoreVaultFiles", { total: records.length });
+	private async restoreVaultFiles(): Promise<RestoreResult> {
+		// logger.method("restoreVaultFiles");
 
 		let restored = 0;
 		let skipped = 0;
 		let conflicts = 0;
+
+		const records = await this.store.listFileRecords();
 
 		for (const [index, record] of records.entries()) {
 			let restoreStatus: "restored" | "skipped" | "conflict";

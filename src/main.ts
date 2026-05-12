@@ -18,7 +18,7 @@ export default class MySyncPlugin extends Plugin {
 		this.statusBarEl = this.addStatusBarItem();
 		this.updateSyncStatus({ state: "idle" });
 
-		const fileStore = new PouchDbFileStore();
+		const fileStore = new PouchDbFileStore(createLocalDatabaseName(this.settings.localVaultId));
 		this.syncService = new SyncService(this.app, fileStore, () => this.settings, (status) =>
 			this.updateSyncStatus(status)
 		);
@@ -99,6 +99,11 @@ export default class MySyncPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
+		if (!this.settings.localVaultId) {
+			this.settings.localVaultId = createLocalVaultId();
+			await this.saveSettings();
+		}
 	}
 
 	async saveSettings() {
@@ -188,4 +193,16 @@ export default class MySyncPlugin extends Plugin {
 		this.statusBarEl.setText("MySync error");
 		this.statusBarEl.title = status.message;
 	}
+}
+
+function createLocalVaultId() {
+	if (typeof crypto.randomUUID === "function") {
+		return crypto.randomUUID();
+	}
+
+	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function createLocalDatabaseName(localVaultId: string) {
+	return `mysync-files-${localVaultId}`;
 }

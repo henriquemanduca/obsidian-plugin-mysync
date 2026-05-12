@@ -4,6 +4,7 @@ import type MySyncPlugin from "main";
 export type SyncFolderMode = "vault-root" | "custom";
 
 export interface MySyncSettings {
+	localVaultId: string;
 	syncFolderMode: SyncFolderMode;
 	customSyncFolder: string;
 	couchDbUrl: string;
@@ -14,6 +15,7 @@ export interface MySyncSettings {
 }
 
 export const DEFAULT_SETTINGS: MySyncSettings = {
+	localVaultId: "",
 	syncFolderMode: "vault-root",
 	customSyncFolder: "",
 	couchDbUrl: "",

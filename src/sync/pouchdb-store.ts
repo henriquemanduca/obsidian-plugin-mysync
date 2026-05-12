@@ -28,9 +28,13 @@ export interface CouchDbConnectionResult {
 const logger = new Logger("PouchDbFileStore");
 
 export class PouchDbFileStore {
-	private fileDb = new PouchDB<VaultFileRecord>("mysync-files");
+	private fileDb: PouchDB<VaultFileRecord>;
 	private fileDbClosed = false;
 	private operationQueue = Promise.resolve();
+
+	constructor(private localDatabaseName: string) {
+		this.fileDb = new PouchDB<VaultFileRecord>(localDatabaseName);
+	}
 
 	async hasFileChanged(file: TFile) {
 		// logger.method("hasFileChanged", { path: file.path });
@@ -119,7 +123,7 @@ export class PouchDbFileStore {
 
 		return this.runWithLocalDb(async (fileDb) => {
 			await fileDb.destroy();
-			this.fileDb = new PouchDB<VaultFileRecord>("mysync-files");
+			this.fileDb = new PouchDB<VaultFileRecord>(this.localDatabaseName);
 			this.fileDbClosed = false;
 
 			const remoteUrl = createRemoteDatabaseUrl(connection.url, connection.database);
@@ -247,7 +251,7 @@ export class PouchDbFileStore {
 			return;
 		}
 
-		this.fileDb = new PouchDB<VaultFileRecord>("mysync-files");
+		this.fileDb = new PouchDB<VaultFileRecord>(this.localDatabaseName);
 		this.fileDbClosed = false;
 	}
 }
