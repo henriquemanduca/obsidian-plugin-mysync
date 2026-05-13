@@ -32,8 +32,6 @@ export class PouchDbFileStore {
 	}
 
 	async hasFileChanged(file: TFile) {
-		// logger.method("hasFileChanged", { path: file.path });
-
 		return this.runWithLocalDb(async (fileDb) => {
 			try {
 				const existing = await fileDb.get(createFileRecordId(file.path));
@@ -49,8 +47,6 @@ export class PouchDbFileStore {
 	}
 
 	async saveFileRecord(record: VaultFileRecord) {
-		// logger.method("saveFileRecord", { id: record._id, path: record.path });
-
 		return this.runWithLocalDb(async (fileDb) => {
 			try {
 				await fileDb.put(record);
@@ -69,8 +65,6 @@ export class PouchDbFileStore {
 	}
 
 	async deleteFileRecordByPath(path: string) {
-		// logger.method("deleteFileRecordByPath", { path });
-
 		return this.runWithLocalDb(async (fileDb) => {
 			try {
 				const existing = await fileDb.get(createFileRecordId(path));
@@ -84,8 +78,6 @@ export class PouchDbFileStore {
 	}
 
 	async pushToCouchDb(connection: CouchDbConnection, onProgress: (docsWritten: number) => void) {
-		// logger.method("pushToCouchDb", { database: connection.database });
-
 		return this.runWithLocalDb(async (fileDb) => {
 			const remoteUrl = createRemoteDatabaseUrl(connection.url, connection.database);
 			const options = createRemoteOptions(connection);
@@ -114,8 +106,6 @@ export class PouchDbFileStore {
 	}
 
 	async pullFromCouchDb(connection: CouchDbConnection, onProgress: (docsRead: number) => void) {
-		// logger.method("pullFromCouchDb", { database: connection.database });
-
 		return this.runWithLocalDb(async (fileDb) => {
 			const remoteUrl = createRemoteDatabaseUrl(connection.url, connection.database);
 			const options = createRemoteOptions(connection);
@@ -180,8 +170,6 @@ export class PouchDbFileStore {
 	}
 
 	async testCouchDbConnection(connection: CouchDbConnection) {
-		// logger.method("testCouchDbConnection", { database: connection.database });
-
 		const remoteUrl = createRemoteDatabaseUrl(connection.url, connection.database);
 		const remoteDb = new PouchDB<VaultFileRecord>(remoteUrl, createRemoteOptions(connection));
 
@@ -220,8 +208,6 @@ export class PouchDbFileStore {
 	}
 
 	private runWithLocalDb<T>(operation: (fileDb: PouchDB<VaultFileRecord>) => Promise<T>) {
-		// logger.method("runWithLocalDb", { fileDbClosed: this.fileDbClosed });
-
 		const queuedOperation = this.operationQueue.then(async () => {
 			this.ensureLocalDbOpen();
 			return operation(this.fileDb);
@@ -236,8 +222,6 @@ export class PouchDbFileStore {
 	}
 
 	private ensureLocalDbOpen() {
-		// logger.method("ensureLocalDbOpen", { fileDbClosed: this.fileDbClosed });
-
 		if (!this.fileDbClosed) {
 			return;
 		}

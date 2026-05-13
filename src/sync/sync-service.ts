@@ -67,8 +67,6 @@ export class SyncService {
 	}
 
 	async syncNow() {
-		// logger.method("syncNow", { syncInProgress: this.syncInProgress });
-
 		if (this.syncInProgress) {
 			new Notice("MySync is already running.");
 			return;
@@ -185,8 +183,6 @@ export class SyncService {
 	}
 
 	async pullFromCouchDb() {
-		// logger.method("pullFromCouchDb", { syncInProgress: this.syncInProgress });
-
 		if (this.syncInProgress) {
 			new Notice("MySync is already running.");
 			return;
@@ -369,8 +365,6 @@ export class SyncService {
 	}
 
 	async testCouchDbConnection() {
-		// logger.method("testCouchDbConnection", { syncInProgress: this.syncInProgress });
-
 		if (this.syncInProgress) {
 			new Notice("MySync is already running.");
 			return;
@@ -426,8 +420,6 @@ export class SyncService {
 	}
 
 	private async syncLocalFiles(): Promise<LocalSyncResult> {
-		// logger.method("syncLocalFiles");
-
 		const syncFolder = this.getCurrentSyncFolder();
 
 		if (!syncFolder) {
@@ -470,8 +462,6 @@ export class SyncService {
 	}
 
 	private async restoreVaultFiles(): Promise<RestoreResult> {
-		// logger.method("restoreVaultFiles");
-
 		let restored = 0;
 		let skipped = 0;
 		let conflicts = 0;
@@ -515,8 +505,6 @@ export class SyncService {
 	}
 
 	private async restoreVaultFile(record: VaultFileRecord): Promise<"restored" | "skipped" | "conflict"> {
-		// logger.method("restoreVaultFile", { path: record.path, fileType: record.fileType });
-
 		const path = normalizeRestoredPath(record.path);
 		if (!path || record.type !== "vault-file") {
 			return "skipped";
@@ -580,32 +568,7 @@ export class SyncService {
 		}
 	}
 
-	// private async createConflictFile(record: VaultFileRecord, originalPath: string) {
-	// 	const conflictPath = getConflictPath(originalPath);
-	//
-	// 	const folderStatus = await this.ensureParentFolders(conflictPath);
-	// 	if (folderStatus === "conflict") {
-	// 		return;
-	// 	}
-	//
-	// 	const existingConflict = this.app.vault.getAbstractFileByPath(conflictPath);
-	// 	if (existingConflict) {
-	// 		await this.app.vault.delete(existingConflict);
-	// 	}
-	//
-	// 	if (record.fileType === "markdown" && typeof record.content === "string") {
-	// 		await this.app.vault.create(conflictPath, record.content);
-	// 	} else if (record.fileType === "image" || record.fileType === "binary") {
-	// 		const data = await getAttachmentArrayBuffer(record);
-	// 		if (data) {
-	// 			await this.app.vault.createBinary(conflictPath, data);
-	// 		}
-	// 	}
-	// }
-
 	private async ensureParentFolders(path: string): Promise<"ok" | "conflict"> {
-		// logger.method("ensureParentFolders", { path });
-
 		const parts = path.split("/");
 		parts.pop();
 
@@ -651,15 +614,11 @@ export class SyncService {
 	}
 
 	async handleRenamedFile(abstractFile: TAbstractFile, oldPath: string) {
-		// logger.method("handleRenamedFile", { path: abstractFile.path, oldPath });
-
 		await this.store.deleteFileRecordByPath(oldPath);
 		this.queueFileSync(abstractFile);
 	}
 
 	async handleDeletedFile(abstractFile: TAbstractFile) {
-		// logger.method("handleDeletedFile", { path: abstractFile.path });
-
 		if (this.applyingRemoteDeletion) {
 			return;
 		}
@@ -670,8 +629,6 @@ export class SyncService {
 	}
 
 	close() {
-		// logger.method("close");
-
 		if (this.syncQueueTimer !== null) {
 			window.clearTimeout(this.syncQueueTimer);
 		}
@@ -762,11 +719,6 @@ export class SyncService {
 	}
 
 	private refreshQueuedStatus() {
-		// logger.method("refreshQueuedStatus", {
-		// 	pending: this.pendingSyncPaths.size,
-		// 	syncInProgress: this.syncInProgress
-		// });
-
 		if (this.syncInProgress) {
 			return;
 		}
@@ -780,8 +732,6 @@ export class SyncService {
 	}
 
 	private isFileInsideCurrentSyncFolder(file: TFile) {
-		// logger.method("isFileInsideCurrentSyncFolder", { path: file.path });
-
 		return isFileInsideSyncFolder(file, this.getCurrentSyncFolder());
 	}
 
@@ -797,15 +747,11 @@ export class SyncService {
 	}
 
 	private getCurrentSyncFolder() {
-		// logger.method("getCurrentSyncFolder");
-
 		const settings = this.getSettings();
 		return getSyncFolder(this.app, settings.syncFolderMode, settings.customSyncFolder);
 	}
 
 	private async syncFileIfChanged(file: TFile) {
-		// logger.method("syncFileIfChanged", { path: file.path });
-
 		if (!(await this.store.hasFileChanged(file))) {
 			return false;
 		}
@@ -848,16 +794,6 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 	return fallback;
 }
-
-// function getConflictPath(path: string) {
-// 	const lastDotIndex = path.lastIndexOf(".");
-//
-// 	if (lastDotIndex > 0) {
-// 		return path.slice(0, lastDotIndex) + ".conflict" + path.slice(lastDotIndex);
-// 	}
-//
-// 	return path + ".conflict";
-// }
 
 function normalizeRestoredPath(path: string) {
 	if (path.startsWith("/")) {
