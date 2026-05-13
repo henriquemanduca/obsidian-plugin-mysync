@@ -5,6 +5,7 @@ import type { VaultFileRecord } from "sync/types";
 import {
 	collectFilesInFolder,
 	createFileRecord,
+	createFileRecordId,
 	getPathFromFileRecordId,
 	getSyncFolder,
 	getSyncFolderState,
@@ -214,6 +215,7 @@ export class SyncService {
 
 			const localRecordsBeforePull = await this.store.listFileRecords();
 			const localRecordsById = new Map(localRecordsBeforePull.map((record) => [record._id, record]));
+			const localVaultRecordIds = this.listCurrentVaultFileRecordIds();
 
 			const pullResult = await this.store.pullFromCouchDb(
 				{
@@ -230,7 +232,11 @@ export class SyncService {
 				}
 			);
 
-			const deletedRecordIds = await this.store.listDeletedFileRecordIds(Array.from(localRecordsById.keys()));
+			const deletionCandidateIds = Array.from(new Set([
+				...localRecordsById.keys(),
+				...localVaultRecordIds
+			]));
+			const deletedRecordIds = await this.store.listDeletedFileRecordIds(deletionCandidateIds);
 			const deletionResult = await this.deleteRemoteDeletedFiles(deletedRecordIds, localRecordsById);
 			const restoreResult = await this.restoreVaultFiles();
 			const skipped = restoreResult.skipped + deletionResult.skipped;
@@ -325,7 +331,7 @@ export class SyncService {
 		const existingFile = this.app.vault.getAbstractFileByPath(path);
 		const localRecord = localRecordsById.get(recordId);
 
-		if (!existingFile || !localRecord) {
+		if (!existingFile) {
 			return "skipped";
 		}
 
@@ -333,7 +339,7 @@ export class SyncService {
 			return "conflict";
 		}
 
-		if (!(await this.localFileMatchesRecord(existingFile, localRecord))) {
+		if (localRecord && !(await this.localFileMatchesRecord(existingFile, localRecord))) {
 			return "conflict";
 		}
 
@@ -658,7 +664,7 @@ export class SyncService {
 			return;
 		}
 
-		if (abstractFile instanceof TFile) {
+		if (abstractFile instanceof TFile && this.isFileInsideCurrentSyncFolder(abstractFile)) {
 			await this.store.deleteFileRecordByPath(abstractFile.path);
 		}
 	}
@@ -777,6 +783,17 @@ export class SyncService {
 		// logger.method("isFileInsideCurrentSyncFolder", { path: file.path });
 
 		return isFileInsideSyncFolder(file, this.getCurrentSyncFolder());
+	}
+
+	private listCurrentVaultFileRecordIds() {
+		const syncFolder = this.getCurrentSyncFolder();
+		const syncFolderState = getSyncFolderState(this.app, syncFolder);
+
+		if (!syncFolderState.valid) {
+			throw new Error(syncFolderState.message);
+		}
+
+		return collectFilesInFolder(syncFolderState.folder).map((file) => createFileRecordId(file.path));
 	}
 
 	private getCurrentSyncFolder() {

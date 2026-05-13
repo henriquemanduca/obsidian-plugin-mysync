@@ -20,11 +20,6 @@ export interface RemotePullResult {
 	docsRead: number;
 }
 
-export interface CouchDbConnectionResult {
-	databaseName: string;
-	documentCount?: number;
-}
-
 const logger = new Logger("PouchDbFileStore");
 
 export class PouchDbFileStore {
