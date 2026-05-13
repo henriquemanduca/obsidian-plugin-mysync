@@ -51,6 +51,15 @@ export class MySyncSettingTab extends PluginSettingTab {
 		const remoteSectionEl = this.createSection("Remote database");
 
 		new Setting(localSectionEl)
+			.setName("Local vault ID")
+			.setDesc("Automatically generated identifier for this vault.")
+			.addText((text) => {
+				text.inputEl.readOnly = true;
+				text.inputEl.addClass("mysync-readonly-setting");
+				text.setValue(`mysync-files-${this.plugin.settings.localVaultId}`);
+			});
+
+		new Setting(localSectionEl)
 			.setName("Folder source")
 			.setDesc(`Choose what folder to sync. Current vault: ${this.app.vault.getName()}.`)
 			.addDropdown((dropdown) =>

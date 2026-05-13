@@ -196,11 +196,8 @@ export default class MySyncPlugin extends Plugin {
 }
 
 function createLocalVaultId() {
-	if (typeof crypto.randomUUID === "function") {
-		return crypto.randomUUID();
-	}
-
-	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+	return crypto.randomUUID().split("-")[0] ||
+		`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function createLocalDatabaseName(localVaultId: string) {
