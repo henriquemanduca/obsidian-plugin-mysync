@@ -133,11 +133,7 @@ export default class MySyncPlugin extends Plugin {
 		}
 
 		if (status.state === "done") {
-			if (status.saved == 0) {
-				this.statusBarEl.setText("done");
-			} else {
-				this.statusBarEl.setText(`done ${status.saved}, skipped ${status.skipped}`);
-			}
+    		this.statusBarEl.setText("done");
 			this.statusBarEl.title = `Saved ${status.saved}, skipped ${status.skipped}`;
 			return;
 		}
@@ -179,14 +175,14 @@ export default class MySyncPlugin extends Plugin {
 		}
 
 		if (status.state === "testing") {
-			this.statusBarEl.setText("test");
+			this.statusBarEl.setText("testing...");
 			this.statusBarEl.title = "Testing CouchDB connection";
 			return;
 		}
 
 		if (status.state === "tested") {
-			this.statusBarEl.setText("connected");
-			this.statusBarEl.title = `Connected to ${status.databaseName}. Documents: ${status.documentCount ?? "unknown"}`;
+			this.statusBarEl.setText("tested");
+			this.statusBarEl.title = `Connected to ${status.databaseName}`;
 			return;
 		}
 

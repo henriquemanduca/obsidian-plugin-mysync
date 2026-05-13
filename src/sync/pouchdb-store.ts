@@ -134,8 +134,6 @@ export class PouchDbFileStore {
 	}
 
 	async listFileRecords() {
-		// logger.method("listFileRecords");
-
 		return this.runWithLocalDb(async (fileDb) => {
 			const result = await fileDb.allDocs({
 				include_docs: true,
@@ -148,8 +146,6 @@ export class PouchDbFileStore {
 	}
 
 	async listDeletedFileRecordIds(recordIds: string[]) {
-		// logger.method("listDeletedFileRecordIds", { total: recordIds.length });
-
 		if (recordIds.length === 0) {
 			return [];
 		}
@@ -190,8 +186,6 @@ export class PouchDbFileStore {
 	}
 
 	async close() {
-		// logger.method("close");
-
 		const closeOperation = this.operationQueue.then(async () => {
 			if (!this.fileDbClosed) {
 				await this.fileDb.close();
